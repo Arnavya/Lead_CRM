@@ -1,0 +1,39 @@
+server:
+  # Application server port
+  port: 8080
+
+spring:
+  datasource:
+    # MySQL database connection
+    url: jdbc:mysql://localhost:3306/minicrm?createDatabaseIfNotExist=true&serverTimezone=UTC
+    username: root
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      # Automatically updates schema during development
+      ddl-auto: update
+
+    # Show SQL queries in console
+    show-sql: true
+
+    properties:
+      hibernate:
+        # Format SQL queries for readability
+        format_sql: true
+
+        # MySQL dialect
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  cache:
+    # Simple in-memory cache implementation
+    type: simple
+
+logging:
+  level:
+    # Log generated SQL queries
+    org.hibernate.SQL: DEBUG
+
+    # Log SQL parameter values
+    org.hibernate.orm.jdbc.bind: TRACE
