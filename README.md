@@ -10,6 +10,7 @@ This project was developed as a backend engineering assignment to demonstrate:
 * business workflow implementation
 * validation and exception handling
 * bulk processing with partial success handling
+* manual in-memory caching
 * database integration using MySQL
 * clean service-layer orchestration
 
@@ -25,7 +26,7 @@ This project was developed as a backend engineering assignment to demonstrate:
 * Maven
 * Lombok
 * Jakarta Validation
-* Spring Cache
+* ConcurrentHashMap-based in-memory caching
 
 ---
 
@@ -41,6 +42,7 @@ The application supports:
 * Partial-success bulk processing
 * DTO validation
 * Structured exception handling
+* Manual in-memory caching
 * MySQL persistence
 * Clean layered architecture
 
@@ -85,6 +87,7 @@ The project follows a standard layered architecture.
 * Handles lead workflow rules
 * Coordinates bulk operations
 * Performs per-record validation for bulk APIs
+* Manages cache orchestration and consistency
 
 ## Repository Layer
 
@@ -145,9 +148,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
-  cache:
-    type: simple
 ```
 
 ---
@@ -237,18 +237,128 @@ Example:
 
 ---
 
+# LEVEL 3
+
+## Manual In-Memory Caching
+
+Implemented lightweight in-memory caching using:
+
+```java
+private final Map<UUID, LeadResponse> cache = new ConcurrentHashMap<>();
+```
+
+The cache is managed manually inside the service layer to keep the implementation explicit, easy to debug, and simple to explain during interviews.
+
+## Cached Endpoint
+
+```text
+GET /leads/{id}
+```
+
+## Cache Miss Flow
+
+1. Request arrives for a lead ID
+2. Application checks cache
+3. If cache entry is missing:
+
+    * fetch lead from database
+    * map entity to response DTO
+    * store result in cache
+    * return response
+
+## Cache Hit Flow
+
+1. Request arrives for a previously cached lead ID
+2. Lead is returned directly from cache
+3. Database query is skipped
+
+## Cache Consistency Handling
+
+### PUT /leads/{id}
+
+* Updates database
+* Refreshes cache entry with latest data
+
+### PATCH /leads/{id}/status
+
+* Updates database
+* Refreshes cache entry with latest status
+
+### DELETE /leads/{id}
+
+* Deletes record from database
+* Removes cache entry
+
+## Why ConcurrentHashMap?
+
+`ConcurrentHashMap` was chosen because it:
+
+* provides thread-safe access
+* supports concurrent requests safely
+* remains lightweight and infrastructure-independent
+* keeps the implementation simple and internship-assignment appropriate
+
+## Design Decisions
+
+The project intentionally avoids:
+
+* Redis
+* Spring Cache annotations
+* external cache infrastructure
+
+Manual cache management was chosen because it:
+
+* demonstrates cache-aside strategy clearly
+* keeps cache behavior explicit
+* simplifies debugging
+* improves interview explainability
+* avoids unnecessary infrastructure complexity
+
+---
+
 # API Endpoints
 
-| Method | Endpoint             | Description        |
-| ------ | -------------------- | ------------------ |
-| POST   | `/leads`             | Create lead        |
-| GET    | `/leads`             | Get all leads      |
-| GET    | `/leads/{id}`        | Get lead by ID     |
-| PUT    | `/leads/{id}`        | Update lead        |
-| DELETE | `/leads/{id}`        | Delete lead        |
-| PATCH  | `/leads/{id}/status` | Update lead status |
-| POST   | `/leads/bulk`        | Bulk create leads  |
-| PUT    | `/leads/bulk`        | Bulk update leads  |
+| Method | Endpoint             | Description             |
+| ------ | -------------------- | ----------------------- |
+| POST   | `/leads`             | Create lead             |
+| GET    | `/leads`             | Get all leads           |
+| GET    | `/leads/{id}`        | Get lead by ID (cached) |
+| PUT    | `/leads/{id}`        | Update lead             |
+| DELETE | `/leads/{id}`        | Delete lead             |
+| PATCH  | `/leads/{id}/status` | Update lead status      |
+| POST   | `/leads/bulk`        | Bulk create leads       |
+| PUT    | `/leads/bulk`        | Bulk update leads       |
+
+---
+
+# Caching Strategy
+
+The application uses a manual cache-aside strategy.
+
+## Cache Read Flow
+
+```text
+Client Request
+       ↓
+Check Cache
+       ↓
+Cache Hit → Return Cached Response
+       ↓
+Cache Miss → Fetch From Database
+       ↓
+Store In Cache
+       ↓
+Return Response
+```
+
+## Cache Update Strategy
+
+Whenever lead data changes:
+
+* cache entries are refreshed after updates
+* cache entries are removed after deletions
+
+This ensures cache consistency with database state.
 
 ---
 
@@ -411,6 +521,16 @@ Response:
 * Mixed valid and invalid records
 * Per-record error validation
 
+## Level 3
+
+* Cache miss verification
+* Cache hit verification
+* Cache refresh after update
+* Cache refresh after status update
+* Cache eviction after delete
+* Re-fetch after cache eviction
+* Concurrent cache access testing
+
 ---
 
 # Engineering Practices Used
@@ -426,6 +546,10 @@ Response:
 * UUID-based identifiers
 * Per-record validation orchestration
 * Fault isolation in bulk APIs
+* Manual cache-aside strategy
+* Thread-safe in-memory caching
+* Explicit cache invalidation
+* Cache consistency management
 
 ---
 
@@ -483,7 +607,8 @@ Potential future enhancements:
 * Search APIs
 * Swagger/OpenAPI documentation
 * Authentication & authorization
-* Redis caching
+* Redis/distributed caching
+* Cache TTL and eviction strategies
 * Docker support
 * Unit and integration testing
 * Audit logging

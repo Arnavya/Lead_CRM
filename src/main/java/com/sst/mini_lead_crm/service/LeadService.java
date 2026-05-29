@@ -27,6 +27,9 @@ import com.sst.mini_lead_crm.dto.response.BulkOperationResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Service
 @RequiredArgsConstructor
 
@@ -35,6 +38,8 @@ public class LeadService {
     private final LeadRepository leadRepository;
     private final LeadMapper leadMapper;
     private final Validator validator;
+
+    private final Map<UUID, LeadResponse> cache = new ConcurrentHashMap<>();
 
     @Transactional
     public LeadResponse createLead(CreateLeadRequest request) {
@@ -63,12 +68,26 @@ public class LeadService {
 
     public LeadResponse getLeadById(UUID id) {
 
+        // Check cache first
+        if (cache.containsKey(id)) {
+            System.out.println("Returning lead from cache for id: " + id);
+            return cache.get(id);
+        }
+
+        System.out.println("Fetching lead from database for id: " + id);
+
+
         Lead lead = leadRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Lead not found with id: " + id)
                 );
 
-        return leadMapper.entityToResponse(lead);
+        LeadResponse response = leadMapper.entityToResponse(lead);
+
+        // Store in cache
+        cache.put(id, response);
+
+        return response;
     }
 
     @Transactional
@@ -83,7 +102,11 @@ public class LeadService {
 
         Lead updatedLead = leadRepository.save(lead);
 
-        return leadMapper.entityToResponse(updatedLead);
+        LeadResponse response = leadMapper.entityToResponse(updatedLead);
+        // Update cache
+        cache.put(id, response);
+
+        return response;
     }
 
     @Transactional
@@ -95,6 +118,9 @@ public class LeadService {
                 );
 
         leadRepository.delete(lead);
+
+        // Remove from cache
+        cache.remove(id);
     }
 
     @Transactional
@@ -121,7 +147,12 @@ public class LeadService {
 
         Lead updatedLead = leadRepository.save(lead);
 
-        return leadMapper.entityToResponse(updatedLead);
+        LeadResponse response = leadMapper.entityToResponse(updatedLead);
+
+        // Update cache
+        cache.put(id, response);
+
+        return response;
     }
 
 
