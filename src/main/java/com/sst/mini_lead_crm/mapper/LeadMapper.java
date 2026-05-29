@@ -7,6 +7,7 @@ import com.sst.mini_lead_crm.entity.Lead;
 import org.springframework.stereotype.Component;
 
 @Component
+
 public class LeadMapper {
 
     public Lead createRequestToEntity(CreateLeadRequest request) {

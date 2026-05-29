@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import com.sst.mini_lead_crm.dto.request.BulkUpdateLeadRequest;
+import com.sst.mini_lead_crm.dto.response.BulkOperationResponse;
+
 @RestController
 @RequestMapping("/leads")
 @RequiredArgsConstructor
@@ -80,6 +83,24 @@ public class LeadController {
     ) {
 
         LeadResponse response = leadService.updateLeadStatus(id, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity <BulkOperationResponse<LeadResponse>> bulkCreateLeads(
+            @RequestBody List <CreateLeadRequest> requests) {
+
+        BulkOperationResponse <LeadResponse> response = leadService.bulkCreateLeads(requests);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/bulk")
+    public ResponseEntity <BulkOperationResponse<LeadResponse>> bulkUpdateLeads(
+            @RequestBody List <BulkUpdateLeadRequest> requests) {
+
+        BulkOperationResponse <LeadResponse> response = leadService.bulkUpdateLeads(requests);
 
         return ResponseEntity.ok(response);
     }

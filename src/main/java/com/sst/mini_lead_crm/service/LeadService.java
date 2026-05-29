@@ -1,7 +1,6 @@
 package com.sst.mini_lead_crm.service;
 
 import org.springframework.transaction.annotation.Transactional;
-
 import com.sst.mini_lead_crm.dto.request.CreateLeadRequest;
 import com.sst.mini_lead_crm.dto.request.UpdateLeadRequest;
 import com.sst.mini_lead_crm.dto.request.UpdateLeadStatusRequest;
@@ -15,16 +14,27 @@ import com.sst.mini_lead_crm.repository.LeadRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.sst.mini_lead_crm.dto.request.BulkUpdateLeadRequest;
+import com.sst.mini_lead_crm.dto.response.BulkItemResponse;
+import com.sst.mini_lead_crm.dto.response.BulkOperationResponse;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+
 public class LeadService {
 
     private final LeadRepository leadRepository;
     private final LeadMapper leadMapper;
+    private final Validator validator;
 
     @Transactional
     public LeadResponse createLead(CreateLeadRequest request) {
@@ -113,4 +123,129 @@ public class LeadService {
 
         return leadMapper.entityToResponse(updatedLead);
     }
+
+
+    public BulkOperationResponse<LeadResponse> bulkCreateLeads(
+            List<CreateLeadRequest> requests) {
+
+        List<BulkItemResponse<LeadResponse>> results = new ArrayList<>();
+
+        int successful = 0;
+        int failed = 0;
+
+        for (CreateLeadRequest request : requests) {
+
+            try {
+                Set<ConstraintViolation<CreateLeadRequest>> violations =
+                        validator.validate(request);
+
+                if (!violations.isEmpty()) {
+
+                    String errorMessage = violations.stream()
+                            .map(v ->
+                                    v.getPropertyPath() + ": " + v.getMessage()
+                            )
+                            .collect(Collectors.joining(", "));
+
+                    results.add(
+                            BulkItemResponse.<LeadResponse>builder()
+                                    .success(false)
+                                    .error(errorMessage)
+                                    .build()
+                    );
+
+                    failed++;
+                    continue;
+                }
+
+                LeadResponse response = createLead(request);
+
+                results.add(
+                        BulkItemResponse.<LeadResponse>builder()
+                                .success(true)
+                                .data(response)
+                                .build()
+                );
+
+                successful++;
+
+            } catch (Exception ex) {
+
+                results.add(
+                        BulkItemResponse.<LeadResponse>builder()
+                                .success(false)
+                                .error(ex.getMessage())
+                                .build()
+                );
+
+                failed++;
+            }
+        }
+
+        return BulkOperationResponse.<LeadResponse>builder()
+                .total(requests.size())
+                .successful(successful)
+                .failed(failed)
+                .results(results)
+                .build();
+    }
+
+
+
+    public BulkOperationResponse <LeadResponse> bulkUpdateLeads(
+            List <BulkUpdateLeadRequest> requests) {
+        List <BulkItemResponse<LeadResponse>> results = new ArrayList<>();
+        int successful = 0;
+        int failed = 0;
+        for (BulkUpdateLeadRequest request: requests) {
+            try {
+                Set < ConstraintViolation <BulkUpdateLeadRequest>> violations = validator.validate(request);
+                if (!violations.isEmpty()) {
+
+                    String errorMessage = violations.stream()
+                            .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                            .collect(Collectors.joining(", "));
+
+                    results.add(BulkItemResponse.<LeadResponse> builder()
+                            .success(false)
+                            .error(errorMessage).build());
+
+                    failed++;
+                    continue;
+                }
+                UpdateLeadRequest updateRequest = UpdateLeadRequest.builder()
+                        .name(request.getName())
+                        .email(request.getEmail())
+                        .phone(request.getPhone())
+                        .source(request.getSource())
+                        .build();
+
+                //Adding Manual UUID Parsing as request.getId() is now a string to support partial success.
+                UUID leadId;
+                try {
+                    leadId = UUID.fromString(request.getId());
+                } catch (IllegalArgumentException ex) {
+                    results.add(BulkItemResponse. < LeadResponse > builder().success(false).error("Invalid UUID format: " + request.getId()).build());
+                    failed++;
+                    continue;
+                }
+                LeadResponse response = updateLead(leadId, updateRequest);
+
+                results.add(BulkItemResponse.<LeadResponse> builder().success(true).data(response).build());
+                successful++;
+            } catch (Exception ex) {
+                results.add(BulkItemResponse. <LeadResponse>builder()
+                        .success(false)
+                        .error(ex.getMessage()).build());
+                failed++;
+            }
+        }
+        return BulkOperationResponse.<LeadResponse>builder()
+                .total(requests.size())
+                .successful(successful)
+                .failed(failed)
+                .results(results)
+                .build();
+    }
+
 }
