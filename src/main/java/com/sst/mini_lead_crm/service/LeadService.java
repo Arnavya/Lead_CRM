@@ -155,62 +155,66 @@ public class LeadService {
         return response;
     }
 
-
+    @Transactional
     public BulkOperationResponse<LeadResponse> bulkCreateLeads(
             List<CreateLeadRequest> requests) {
 
         List<BulkItemResponse<LeadResponse>> results = new ArrayList<>();
 
+        List<CreateLeadRequest> validRequests = new ArrayList<>();
+
         int successful = 0;
         int failed = 0;
 
+        // Phase 1: Validation
         for (CreateLeadRequest request : requests) {
 
-            try {
-                Set<ConstraintViolation<CreateLeadRequest>> violations =
-                        validator.validate(request);
+            Set<ConstraintViolation<CreateLeadRequest>> violations =
+                    validator.validate(request);
 
-                if (!violations.isEmpty()) {
+            if (!violations.isEmpty()) {
 
-                    String errorMessage = violations.stream()
-                            .map(v ->
-                                    v.getPropertyPath() + ": " + v.getMessage()
-                            )
-                            .collect(Collectors.joining(", "));
-
-                    results.add(
-                            BulkItemResponse.<LeadResponse>builder()
-                                    .success(false)
-                                    .error(errorMessage)
-                                    .build()
-                    );
-
-                    failed++;
-                    continue;
-                }
-
-                LeadResponse response = createLead(request);
-
-                results.add(
-                        BulkItemResponse.<LeadResponse>builder()
-                                .success(true)
-                                .data(response)
-                                .build()
-                );
-
-                successful++;
-
-            } catch (Exception ex) {
+                String errorMessage = violations.stream()
+                        .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                        .collect(Collectors.joining(", "));
 
                 results.add(
                         BulkItemResponse.<LeadResponse>builder()
                                 .success(false)
-                                .error(ex.getMessage())
+                                .error(errorMessage)
                                 .build()
                 );
 
                 failed++;
+                continue;
             }
+
+            validRequests.add(request);
+        }
+
+        // Phase 2: Convert DTOs to entities
+        List<Lead> leadsToSave = validRequests.stream()
+                .map(leadMapper::createRequestToEntity)
+                .toList();
+
+        // Phase 3: Batch persistence
+        System.out.println("Saving " + leadsToSave.size() + " leads using saveAll()");
+
+        List<Lead> savedLeads = leadRepository.saveAll(leadsToSave);
+
+        // Phase 4: Success responses
+        for (Lead lead : savedLeads) {
+
+            LeadResponse response = leadMapper.entityToResponse(lead);
+
+            results.add(
+                    BulkItemResponse.<LeadResponse>builder()
+                            .success(true)
+                            .data(response)
+                            .build()
+            );
+
+            successful++;
         }
 
         return BulkOperationResponse.<LeadResponse>builder()

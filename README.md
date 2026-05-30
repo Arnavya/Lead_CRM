@@ -616,6 +616,12 @@ Potential future enhancements:
 
 ---
 
+## Experimental Branch
+
+This branch explores batch persistence optimizations for bulk lead creation.
+
+See: batch-persistence-optimization.md
+
 # Author
 
 Arnavya Chettri

@@ -7,7 +7,7 @@ spring:
     # MySQL database connection
     url: jdbc:mysql://localhost:3306/minicrm?createDatabaseIfNotExist=true&serverTimezone=UTC
     username: root
-    password: ${DB_PASSWORD}
+    password: #${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -22,9 +22,15 @@ spring:
       hibernate:
         # Format SQL queries for readability
         format_sql: true
-
         # MySQL dialect
         dialect: org.hibernate.dialect.MySQLDialect
+
+        jdbc:
+          batch_size: 25 # Collect up to 25 insert/update statements before sending them to the database.
+
+        order_inserts: true
+        order_updates: true
+
 
   cache:
     # Simple in-memory cache implementation
